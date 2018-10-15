@@ -52,10 +52,9 @@ let Countys = {
   "嘉義縣":"20_chiayi_country",
   "花蓮":"21_hualien",
   "連江":"22_lianjiang",
-  "行政院":"23_dataset"
 }
 
-let text = fs.readFileSync("./rel.txt",'utf8');
+let text = fs.readFileSync("./rel2.txt",'utf8');
 let relateData = {};
 text.split(/\n/).forEach(line=>{
   let temp = line.split(" ");
@@ -85,6 +84,7 @@ app.post("/data/county",function(req,res){
   let wordsets=[];
   let countys = req.body.data;
   let key = req.body.key;
+  console.log(countys+" || "+key);
   let secondSearch={};
   if(countys.length == 0){
     for(index in Countys){
@@ -122,18 +122,10 @@ app.post("/data/county",function(req,res){
     )
   }
   Promise.all(promises).then(()=>{
-    if(key==undefined || countys.includes("行政院")){
-      if(countys.includes("行政院")){
-        for(item in dict){
-          if(dict[item]>1000){
-            wordsets.push([item,dict[item]]);
-          }
-        }
-      }else{
-        for(item in dict){
-          if(dict[item]>20 && dict[item]<400){
-            wordsets.push([item,dict[item]]);
-          }
+    if(key==undefined){
+      for(item in dict){
+        if(dict[item]>100 && dict[item]<1000){
+          wordsets.push([item,dict[item]]);
         }
       }
       res.send(wordsets);
