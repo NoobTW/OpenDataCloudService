@@ -64,6 +64,7 @@ let Countys = {
 
 let blacklist = [
     "臺北市",
+    "新北",
     "北市",
     "新北市",
     "桃園市",
@@ -235,13 +236,15 @@ app.post("/data/county",function(req,res){
       let temp = stackData[index];
       if(temp.includes(key)){
         begintemp.push(temp);
+        let avoid = [];
         temp.forEach(it=>{
-          if(it.length>1){
+          if(it.length>1 && !avoid.includes(it)){
             if(dict[it]!=null){
               dict[it]++;
             }else{
               dict[it]=1;
             }
+            avoid.push(it);
           }
         })
       }
@@ -257,14 +260,16 @@ app.post("/data/county",function(req,res){
           temp.forEach((item)=>{
             let cuts = nodejieba.cut(item["資料集名稱"]);
             begintemp.push(cuts);
+            let avoid = [];
             cuts.forEach(it=>{
-              if(it.length>1){
+              if(it.length>1 && !avoid.includes(it)){
                 if(dict[it]!=null){
                   dict[it]++;
                 }else{
                   dict[it]=1;
                 }
               }
+              avoid.push(it);
             })
           })
         })
