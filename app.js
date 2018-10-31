@@ -4,6 +4,8 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var bodyParser = require("body-parser");
+var session = require('express-session');
+var RedisStore = require('connect-redis')(session);
 
 
 var indexRouter = require('./routes/index');
@@ -22,6 +24,12 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({extended:false}));
 app.use(bodyParser.json());
+app.use(session({
+  secret: "keyboard cat",
+  resave : false,
+  saveUninitialized:true,
+  cookie: { secure: true }
+}))
 
 const request = require("request");
 const csv = require('csvtojson');
@@ -119,9 +127,9 @@ getTotal();
 app.all('*', (req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization, Accept,X-Requested-With,x-csrf-token');
   res.header('Access-Control-Allow-Methods', 'PUT, GET, POST, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
   res.header('Access-Control-Allow-Credentials', true);
   // 這裡不能用 * 號, 要改成 domain 的方式才能設置 cookies
-  res.header('Access-Control-Allow-Origin', req.headers.origin);
   if (req.method === 'OPTIONS') {
     res.send(200);
   } else {
@@ -192,6 +200,7 @@ app.all('*', (req, res, next) => {
 // })
 
 app.post("/data/county",function(req,res){
+  console.log(req.sessionID);
   let promises=[];
   let dict = {};
   let wordsets=[];
@@ -202,6 +211,7 @@ app.post("/data/county",function(req,res){
   let begintemp = [];
   console.log(countys+" || "+key);
   if(countys.length == 0){
+    countys = [];
     for(index in Countys){
       countys.push(index);
     }
@@ -238,6 +248,7 @@ app.post("/data/county",function(req,res){
     }
   }else{
     stack = [];
+    req.session.stack = [];
     secondKey = [];
     for(element in countys){
       promises.push(
@@ -283,8 +294,8 @@ app.post("/data/county",function(req,res){
     }
     stack.push(begintemp);
     console.log(secondKey);
-    console.log(stack.length);
-    res.send({data:wordsets,key:secondKey});
+    console.log(stack[stack.length-1].length);
+    res.send({data:wordsets,key:secondKey,dataNum :stack[stack.length-1].length});
   })
 })
 
