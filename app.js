@@ -5,8 +5,6 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var bodyParser = require("body-parser");
 var session = require('express-session');
-var RedisStore = require('connect-redis')(session);
-
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -28,10 +26,9 @@ app.use(session({
   secret: "keyboard cat",
   resave : false,
   saveUninitialized:true,
-  cookie: { secure: true }
+  cookie: { maxAge:60*1000*60 }
 }))
 
-const request = require("request");
 const csv = require('csvtojson');
 const nodejieba = require("nodejieba");
 nodejieba.load({dict:"./dict.txt"});
@@ -89,7 +86,6 @@ let blacklist = [
     "連江縣",
 ]
 
-var stack = [];
 var secondKey = [];
 let total = [];
 let text = fs.readFileSync("./rel2.txt",'utf8');
@@ -201,14 +197,14 @@ app.all('*', (req, res, next) => {
 // })
 
 app.post("/data/county",function(req,res){
-  console.log(req.sessionID);
-  let promises=[];
-  let dict = {};
-  let wordsets=[];
   let countys = req.body.data;
   let relate = req.body.relate;
   let key = req.body.key;
   let back = req.body.back;
+
+  let promises=[];
+  let dict = {};
+  let wordsets=[];
   let begintemp = [];
   console.log(countys+" || "+key);
   if(countys.length == 0){
@@ -218,20 +214,21 @@ app.post("/data/county",function(req,res){
     }
   }
   if(relate == true){
-    stack = [];
-    stack.push(total);
+    req.session.Stack = [];
+    req.session.Stack.push(total);
     secondKey = [];
   }
 
   if(back !=0){
     for(let i=0;i<back;i++){
-      stack.pop();
+      req.session.Stack.pop();
       secondKey.pop();
     }
   }
+
   if(key != undefined && key!='縣市'){
     secondKey.push(key);
-    let stackData = stack[stack.length-1];
+    let stackData = req.session.Stack[req.session.Stack.length-1];
     for(index in stackData){
       let temp = stackData[index];
       if(temp.includes(key)){
@@ -250,8 +247,7 @@ app.post("/data/county",function(req,res){
       }
     }
   }else{
-    stack = [];
-    req.session.stack = [];
+    req.session.Stack = [];
     secondKey = [];
     for(element in countys){
       promises.push(
@@ -278,32 +274,66 @@ app.post("/data/county",function(req,res){
   }
   Promise.all(promises).then(()=>{
     console.log(Object.keys(dict).length);
-    if(Object.keys(dict).length>2000){
-      for(item in dict){
-        if(dict[item]>100 && dict[item]<1000 && !blacklist.includes(item)){
-          wordsets.push([item,dict[item]]);
-        }
-      }
-     }else if(Object.keys(dict).length>600){ 
-      for(item in dict){
-        if(dict[item]>50 && dict[item]<500 && !blacklist.includes(item)){
-          wordsets.push([item,dict[item]]);
-        }
-      }
-    }else{
-      for(item in dict){
-        if(dict[item]>5 && !blacklist.includes(item)){
-          wordsets.push([item,dict[item]]);
-        }
-      }
-    }
-    stack.push(begintemp);
-    console.log(secondKey);
-    console.log(stack[stack.length-1].length);
-    res.send({data:wordsets,key:secondKey,dataNum :stack[stack.length-1].length});
+    var items = Object.keys(dict).map(function(key) {
+      return [key, dict[key]];
+    });
+    
+    items = sortObj(items);
+    
+    // console.log(items.splice(0,30));
+    req.session.Stack.push(begintemp);
+    res.send({data:items.splice(0,50),key:secondKey,dataNum :req.session.Stack[req.session.Stack.length-1].length});
   })
 })
 
+app.post('/data/smallcloud',function(req,res){
+  let relateKey = relateData[req.body.key];
+  let totalData = total;
+  let wordsets = [];
+  for(let i=0;i<relateKey.length;i++){
+    let dict={};
+    for(index in totalData){
+      let temp = totalData[index];
+      if(temp.includes(relateKey[i])){
+        let avoid = [];
+        temp.forEach(it=>{
+          if(it.length>1 && !avoid.includes(it)){
+            if(dict[it]){
+              dict[it]++;
+            }else{
+              dict[it]=1;
+            }
+            avoid.push(it);
+          }
+        })
+      }
+    }
+    var items = Object.keys(dict).map(function(key) {
+      return [key, dict[key]];
+    });
+    
+    items.sort(function(first, second) {
+      return second[1] - first[1];
+    });
+
+    items = items.filter(function(item){
+      return item[1]>10;
+    })
+    wordsets.push(items.splice(0,10));
+  }
+  console.log(relateKey);
+  res.send(wordsets);
+})
+
+function sortObj(items){
+  items.sort(function(first, second) {
+    return second[1] - first[1];
+  });
+  items = items.filter(function(item){
+    return !blacklist.includes(item[0]);
+  })
+  return items;
+}
 
 app.post("/data/keyword",function(req,res){
   let key = req.body.key;
